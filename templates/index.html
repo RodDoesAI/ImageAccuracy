@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Product Image Replacer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Drop-zone active highlight */
+    .drop-active { @apply ring-4 ring-indigo-400 bg-indigo-50; }
+
+    /* Score ring animation */
+    @keyframes fillRing {
+      from { stroke-dashoffset: 283; }
+      to   { stroke-dashoffset: var(--target-offset); }
+    }
+    .score-ring circle.progress {
+      animation: fillRing 1s ease-out forwards;
+    }
+
+    /* Smooth fade-in for results */
+    .fade-in { animation: fadeIn .4s ease; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px);} to { opacity:1; transform:translateY(0);} }
+  </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-slate-100 font-sans">
+
+  <!-- Header -->
+  <header class="border-b border-slate-700/50 px-6 py-4 flex items-center gap-3">
+    <div class="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center text-white font-bold text-sm">PI</div>
+    <h1 class="text-lg font-semibold tracking-tight">Product Image Replacer</h1>
+    <span class="ml-auto text-xs text-slate-400 bg-slate-700/60 px-2 py-1 rounded-full">Powered by Imagen 3</span>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-4 py-10 space-y-10">
+
+    <!-- Step 1: Upload -->
+    <section>
+      <div class="flex items-center gap-2 mb-5">
+        <span class="w-6 h-6 rounded-full bg-indigo-500 text-xs font-bold flex items-center justify-center">1</span>
+        <h2 class="font-semibold text-slate-200">Upload Images</h2>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <!-- Reference product drop zone -->
+        <div>
+          <p class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Reference Product</p>
+          <label id="zone-product"
+                 class="relative flex flex-col items-center justify-center w-full h-52 rounded-2xl border-2 border-dashed border-slate-600 bg-slate-800/60 cursor-pointer hover:border-indigo-500 hover:bg-slate-800 transition-all group"
+                 ondragover="handleDragOver(event,'zone-product')" ondragleave="handleDragLeave('zone-product')" ondrop="handleDrop(event,'product')">
+            <img id="preview-product" class="absolute inset-0 w-full h-full object-contain p-3 rounded-2xl hidden" alt="Product preview" />
+            <div id="placeholder-product" class="flex flex-col items-center gap-2 pointer-events-none">
+              <svg class="w-10 h-10 text-slate-500 group-hover:text-indigo-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4-4m0 0l4 4m-4-4v9M20 12V4m0 0h-4m4 0l-4 4"/>
+                <rect x="2" y="3" width="20" height="18" rx="2" stroke-width="1.5"/>
+              </svg>
+              <span class="text-sm text-slate-400">Drop or <span class="text-indigo-400">browse</span></span>
+              <span class="text-xs text-slate-500">PNG, JPEG, WEBP</span>
+            </div>
+            <input type="file" class="hidden" accept="image/*" onchange="handleFileSelect(event,'product')" />
+          </label>
+          <p id="name-product" class="mt-1 text-xs text-slate-500 truncate"></p>
+        </div>
+
+        <!-- Scene drop zone -->
+        <div>
+          <p class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Target Scene / Style</p>
+          <label id="zone-scene"
+                 class="relative flex flex-col items-center justify-center w-full h-52 rounded-2xl border-2 border-dashed border-slate-600 bg-slate-800/60 cursor-pointer hover:border-indigo-500 hover:bg-slate-800 transition-all group"
+                 ondragover="handleDragOver(event,'zone-scene')" ondragleave="handleDragLeave('zone-scene')" ondrop="handleDrop(event,'scene')">
+            <img id="preview-scene" class="absolute inset-0 w-full h-full object-contain p-3 rounded-2xl hidden" alt="Scene preview" />
+            <div id="placeholder-scene" class="flex flex-col items-center gap-2 pointer-events-none">
+              <svg class="w-10 h-10 text-slate-500 group-hover:text-indigo-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4-4m0 0l4 4m-4-4v9M20 12V4m0 0h-4m4 0l-4 4"/>
+                <rect x="2" y="3" width="20" height="18" rx="2" stroke-width="1.5"/>
+              </svg>
+              <span class="text-sm text-slate-400">Drop or <span class="text-indigo-400">browse</span></span>
+              <span class="text-xs text-slate-500">PNG, JPEG, WEBP</span>
+            </div>
+            <input type="file" class="hidden" accept="image/*" onchange="handleFileSelect(event,'scene')" />
+          </label>
+          <p id="name-scene" class="mt-1 text-xs text-slate-500 truncate"></p>
+        </div>
+      </div>
+
+      <!-- Optional extra prompt -->
+      <div class="mt-4">
+        <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Additional Instructions <span class="text-slate-600">(optional)</span></label>
+        <input id="extra-prompt" type="text" placeholder="e.g. place the bottle on the left shelf, moody lighting…"
+               class="mt-1.5 w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-colors" />
+      </div>
+    </section>
+
+    <!-- Step 2: Generate -->
+    <section>
+      <div class="flex items-center gap-2 mb-5">
+        <span class="w-6 h-6 rounded-full bg-indigo-500 text-xs font-bold flex items-center justify-center">2</span>
+        <h2 class="font-semibold text-slate-200">Generate &amp; Analyze</h2>
+      </div>
+
+      <button id="btn-generate"
+              onclick="runPipeline()"
+              disabled
+              class="w-full py-3.5 rounded-2xl font-semibold text-sm bg-indigo-500 hover:bg-indigo-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all focus:outline-none focus:ring-2 focus:ring-indigo-400">
+        Replace Product
+      </button>
+
+      <!-- Progress / status -->
+      <div id="status-bar" class="hidden mt-4 flex items-center gap-3 text-sm text-slate-400">
+        <svg class="w-4 h-4 animate-spin text-indigo-400" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+        </svg>
+        <span id="status-text">Generating…</span>
+      </div>
+
+      <!-- Error message -->
+      <div id="error-bar" class="hidden mt-4 p-4 rounded-xl bg-red-900/40 border border-red-700/50 text-sm text-red-300"></div>
+    </section>
+
+    <!-- Step 3: Results -->
+    <section id="results-section" class="hidden fade-in">
+      <div class="flex items-center gap-2 mb-5">
+        <span class="w-6 h-6 rounded-full bg-emerald-500 text-xs font-bold flex items-center justify-center">3</span>
+        <h2 class="font-semibold text-slate-200">Results</h2>
+      </div>
+
+      <!-- Image trio -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <div class="space-y-2">
+          <p class="text-xs font-medium text-slate-400 uppercase tracking-wider text-center">Reference Product</p>
+          <div class="rounded-2xl overflow-hidden bg-slate-800 aspect-square flex items-center justify-center">
+            <img id="result-product" class="object-contain w-full h-full p-2" alt="Reference product" />
+          </div>
+        </div>
+        <div class="space-y-2">
+          <p class="text-xs font-medium text-slate-400 uppercase tracking-wider text-center">Target Scene</p>
+          <div class="rounded-2xl overflow-hidden bg-slate-800 aspect-square flex items-center justify-center">
+            <img id="result-scene" class="object-contain w-full h-full p-2" alt="Target scene" />
+          </div>
+        </div>
+        <div class="space-y-2">
+          <p class="text-xs font-medium text-emerald-400 uppercase tracking-wider text-center">Generated Image</p>
+          <div class="rounded-2xl overflow-hidden bg-slate-800 ring-2 ring-emerald-500/50 aspect-square flex items-center justify-center">
+            <img id="result-generated" class="object-contain w-full h-full p-2" alt="Generated result" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Download button -->
+      <div class="flex justify-center mb-8">
+        <a id="download-btn" href="#" download="generated_product.jpg"
+           class="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-sm font-semibold transition-colors flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 12v6m0 0l-3-3m3 3l3-3M12 4v4"/>
+          </svg>
+          Download Result
+        </a>
+      </div>
+
+      <!-- Accuracy analysis panel -->
+      <div id="analysis-panel" class="space-y-6">
+        <div class="flex items-center gap-3">
+          <h3 class="font-semibold text-slate-200">Accuracy Analysis</h3>
+          <div id="analysis-loading" class="flex items-center gap-2 text-sm text-slate-400">
+            <svg class="w-4 h-4 animate-spin text-indigo-400" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+            </svg>
+            <span>Analyzing…</span>
+          </div>
+        </div>
+
+        <div id="analysis-content" class="hidden space-y-6 fade-in">
+          <!-- Overall score large -->
+          <div class="flex items-center gap-6 p-6 rounded-2xl bg-slate-800/80 border border-slate-700">
+            <div class="relative w-24 h-24 shrink-0">
+              <svg class="score-ring w-24 h-24 -rotate-90" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="45" fill="none" stroke="#1e293b" stroke-width="8"/>
+                <circle id="ring-overall" cx="50" cy="50" r="45" fill="none" stroke="#10b981" stroke-width="8"
+                        stroke-dasharray="283" stroke-dashoffset="283" stroke-linecap="round" class="progress transition-all"/>
+              </svg>
+              <span class="absolute inset-0 flex items-center justify-center text-2xl font-bold" id="score-overall">—</span>
+            </div>
+            <div>
+              <p class="text-xs text-slate-400 uppercase tracking-wider font-medium mb-1">Overall Accuracy</p>
+              <p id="analysis-summary" class="text-sm text-slate-300 leading-relaxed"></p>
+            </div>
+          </div>
+
+          <!-- Individual scores -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3" id="score-grid">
+            <!-- Injected by JS -->
+          </div>
+
+          <!-- Strengths & Improvements -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="p-5 rounded-2xl bg-emerald-900/30 border border-emerald-700/40 space-y-2">
+              <p class="text-xs font-medium text-emerald-400 uppercase tracking-wider">Strengths</p>
+              <ul id="list-strengths" class="space-y-1.5 text-sm text-slate-300"></ul>
+            </div>
+            <div class="p-5 rounded-2xl bg-amber-900/20 border border-amber-700/30 space-y-2">
+              <p class="text-xs font-medium text-amber-400 uppercase tracking-wider">Areas for Improvement</p>
+              <ul id="list-improvements" class="space-y-1.5 text-sm text-slate-300"></ul>
+            </div>
+          </div>
+        </div>
+
+        <div id="analysis-error" class="hidden text-sm text-amber-400"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    // ──────────────────────────────────────
+    // State
+    // ──────────────────────────────────────
+    const state = { product: null, scene: null };
+
+    function setFile(key, file) {
+      state[key] = file;
+      document.getElementById(`name-${key}`).textContent = file.name;
+
+      const reader = new FileReader();
+      reader.onload = e => {
+        const preview = document.getElementById(`preview-${key}`);
+        preview.src = e.target.result;
+        preview.classList.remove('hidden');
+        document.getElementById(`placeholder-${key}`).classList.add('hidden');
+        if (key === 'product') {
+          document.getElementById('result-product').src = e.target.result;
+        } else {
+          document.getElementById('result-scene').src = e.target.result;
+        }
+      };
+      reader.readAsDataURL(file);
+      updateGenerateBtn();
+    }
+
+    function updateGenerateBtn() {
+      document.getElementById('btn-generate').disabled = !(state.product && state.scene);
+    }
+
+    // ──────────────────────────────────────
+    // Drag & Drop
+    // ──────────────────────────────────────
+    function handleDragOver(e, zoneId) {
+      e.preventDefault();
+      document.getElementById(zoneId).classList.add('drop-active');
+    }
+    function handleDragLeave(zoneId) {
+      document.getElementById(zoneId).classList.remove('drop-active');
+    }
+    function handleDrop(e, key) {
+      e.preventDefault();
+      const zoneId = `zone-${key}`;
+      document.getElementById(zoneId).classList.remove('drop-active');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) setFile(key, file);
+    }
+    function handleFileSelect(e, key) {
+      const file = e.target.files[0];
+      if (file) setFile(key, file);
+    }
+
+    // ──────────────────────────────────────
+    // Pipeline: generate → then analyze
+    // ──────────────────────────────────────
+    let generatedBlob = null;
+
+    async function runPipeline() {
+      hideError();
+      hideResults();
+      setStatus(true, 'Generating replacement image with Imagen 3…');
+
+      const extraPrompt = document.getElementById('extra-prompt').value;
+      const fd = new FormData();
+      fd.append('product_image', state.product);
+      fd.append('scene_image', state.scene);
+      fd.append('extra_prompt', extraPrompt);
+
+      let genB64;
+      try {
+        const res = await fetch('/api/replace', { method: 'POST', body: fd });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ detail: res.statusText }));
+          throw new Error(err.detail || 'Generation failed');
+        }
+        const data = await res.json();
+        genB64 = data.generated_image;
+      } catch (err) {
+        setStatus(false);
+        showError(`Generation error: ${err.message}`);
+        return;
+      }
+
+      // Show generated image
+      const imgSrc = `data:image/jpeg;base64,${genB64}`;
+      document.getElementById('result-generated').src = imgSrc;
+      generatedBlob = b64ToBlob(genB64, 'image/jpeg');
+      document.getElementById('download-btn').href = URL.createObjectURL(generatedBlob);
+
+      document.getElementById('results-section').classList.remove('hidden');
+      setStatus(false);
+
+      // Kick off analysis
+      document.getElementById('analysis-loading').classList.remove('hidden');
+      document.getElementById('analysis-content').classList.add('hidden');
+      document.getElementById('analysis-error').classList.add('hidden');
+
+      const fd2 = new FormData();
+      fd2.append('product_image', state.product);
+      fd2.append('generated_image', new File([generatedBlob], 'generated.jpg', { type: 'image/jpeg' }));
+
+      try {
+        const res2 = await fetch('/api/analyze', { method: 'POST', body: fd2 });
+        if (!res2.ok) {
+          const err = await res2.json().catch(() => ({ detail: res2.statusText }));
+          throw new Error(err.detail || 'Analysis failed');
+        }
+        const analysis = await res2.json();
+        renderAnalysis(analysis);
+      } catch (err) {
+        document.getElementById('analysis-loading').classList.add('hidden');
+        const errEl = document.getElementById('analysis-error');
+        errEl.textContent = `Analysis unavailable: ${err.message}`;
+        errEl.classList.remove('hidden');
+      }
+    }
+
+    // ──────────────────────────────────────
+    // Render analysis
+    // ──────────────────────────────────────
+    const SCORE_LABELS = {
+      product_fidelity:     'Product Fidelity',
+      lighting_consistency: 'Lighting',
+      perspective_accuracy: 'Perspective',
+      edge_integration:     'Edge Blend',
+    };
+
+    const SCORE_COLORS = {
+      product_fidelity:     { ring: '#6366f1', bg: 'bg-indigo-900/40', border: 'border-indigo-700/40' },
+      lighting_consistency: { ring: '#f59e0b', bg: 'bg-amber-900/30',  border: 'border-amber-700/40' },
+      perspective_accuracy: { ring: '#3b82f6', bg: 'bg-blue-900/30',   border: 'border-blue-700/40' },
+      edge_integration:     { ring: '#a855f7', bg: 'bg-purple-900/30', border: 'border-purple-700/40' },
+    };
+
+    function scoreToOffset(score) {
+      // circumference = 2π × 45 ≈ 283
+      return (283 * (1 - score / 100)).toFixed(1);
+    }
+
+    function scoreColor(score) {
+      if (score >= 80) return 'text-emerald-400';
+      if (score >= 60) return 'text-amber-400';
+      return 'text-red-400';
+    }
+
+    function renderAnalysis(data) {
+      document.getElementById('analysis-loading').classList.add('hidden');
+
+      // Overall ring
+      const overall = data.overall ?? 0;
+      const ringEl = document.getElementById('ring-overall');
+      ringEl.style.setProperty('--target-offset', scoreToOffset(overall));
+      ringEl.style.strokeDashoffset = scoreToOffset(overall);
+      const overallEl = document.getElementById('score-overall');
+      overallEl.textContent = overall;
+      overallEl.className = `absolute inset-0 flex items-center justify-center text-2xl font-bold ${scoreColor(overall)}`;
+
+      document.getElementById('analysis-summary').textContent = data.summary ?? '';
+
+      // Score cards
+      const grid = document.getElementById('score-grid');
+      grid.innerHTML = '';
+      for (const [key, label] of Object.entries(SCORE_LABELS)) {
+        const score = data.scores?.[key] ?? 0;
+        const c = SCORE_COLORS[key];
+        grid.innerHTML += `
+          <div class="p-4 rounded-2xl ${c.bg} border ${c.border} flex flex-col items-center gap-2">
+            <div class="relative w-14 h-14">
+              <svg class="score-ring w-14 h-14 -rotate-90" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="45" fill="none" stroke="#1e293b" stroke-width="10"/>
+                <circle cx="50" cy="50" r="45" fill="none" stroke="${c.ring}" stroke-width="10"
+                        stroke-dasharray="283" stroke-dashoffset="${scoreToOffset(score)}"
+                        stroke-linecap="round" class="progress transition-all" style="--target-offset:${scoreToOffset(score)}"/>
+              </svg>
+              <span class="absolute inset-0 flex items-center justify-center text-sm font-bold ${scoreColor(score)}">${score}</span>
+            </div>
+            <p class="text-xs text-slate-400 text-center leading-tight">${label}</p>
+          </div>`;
+      }
+
+      // Strengths
+      const strList = document.getElementById('list-strengths');
+      strList.innerHTML = (data.strengths ?? []).map(s =>
+        `<li class="flex items-start gap-1.5"><span class="text-emerald-400 mt-0.5">✓</span>${s}</li>`
+      ).join('');
+
+      // Improvements
+      const impList = document.getElementById('list-improvements');
+      impList.innerHTML = (data.improvements ?? []).map(i =>
+        `<li class="flex items-start gap-1.5"><span class="text-amber-400 mt-0.5">↑</span>${i}</li>`
+      ).join('');
+
+      document.getElementById('analysis-content').classList.remove('hidden');
+    }
+
+    // ──────────────────────────────────────
+    // UI helpers
+    // ──────────────────────────────────────
+    function setStatus(show, text = '') {
+      const bar = document.getElementById('status-bar');
+      bar.classList.toggle('hidden', !show);
+      if (text) document.getElementById('status-text').textContent = text;
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('error-bar');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+    }
+
+    function hideError() {
+      document.getElementById('error-bar').classList.add('hidden');
+    }
+
+    function hideResults() {
+      document.getElementById('results-section').classList.add('hidden');
+    }
+
+    function b64ToBlob(b64, mime) {
+      const bytes = atob(b64);
+      const arr = new Uint8Array(bytes.length);
+      for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+      return new Blob([arr], { type: mime });
+    }
+  </script>
+</body>
+</html>
