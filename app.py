@@ -23,7 +23,7 @@ client = genai.Client(api_key=GOOGLE_API_KEY)
 app = FastAPI(title="Product Image Replacer")
 templates = Jinja2Templates(directory="templates")
 
-IMAGEN_EDIT_MODEL = "imagen-3.0-capability-001"
+GEMINI_IMAGE_GEN_MODEL = "gemini-2.0-flash-preview-image-generation"
 GEMINI_ANALYSIS_MODEL = "gemini-2.0-flash"
 
 
@@ -45,43 +45,46 @@ def replace_product_in_scene(
     extra_prompt: str = "",
 ) -> bytes:
     """
-    Use Imagen 3 editing (PRODUCT_IMAGE mode) to seamlessly place the reference
-    product into the scene image.
+    Use Gemini image generation to seamlessly place the reference product into the scene.
+    Image 1 (product) + Image 2 (scene) → new scene with product integrated.
     """
-    product_norm, _ = normalize_image(product_bytes)
-    scene_norm, _ = normalize_image(scene_bytes)
+    product_norm, prod_mime = normalize_image(product_bytes)
+    scene_norm, scene_mime = normalize_image(scene_bytes)
 
     prompt_parts = [
-        "Seamlessly integrate the reference product into the scene.",
-        "Preserve the exact visual appearance, branding, colors, shape, and texture of the product.",
-        "Match the lighting, shadows, and perspective of the surrounding environment.",
-        "The product replacement should look photorealistic and natural.",
+        "You are given two images: Image 1 is a product reference, Image 2 is a scene.",
+        "Generate a new photorealistic version of the scene (Image 2) with the product from Image 1 seamlessly integrated into it.",
+        "Preserve the exact visual appearance, branding, colors, shape, and texture of the product from Image 1.",
+        "Match the lighting, shadows, and perspective of the scene in Image 2.",
+        "The product placement should look completely natural, as if it was always part of the scene.",
+        "Output only the final composited scene image.",
     ]
     if extra_prompt.strip():
         prompt_parts.append(extra_prompt.strip())
     prompt = " ".join(prompt_parts)
 
-    raw_ref = types.RawReferenceImage(
-        reference_id=1,
-        reference_image=types.Image(image_bytes=product_norm),
-    )
-
-    response = client.models.edit_image(
-        model=IMAGEN_EDIT_MODEL,
-        prompt=prompt,
-        reference_images=[raw_ref],
-        base_image=types.Image(image_bytes=scene_norm),
-        config=types.EditImageConfig(
-            number_of_images=1,
-            safety_filter_level="BLOCK_ONLY_HIGH",
-            include_rai_reason=True,
+    response = client.models.generate_content(
+        model=GEMINI_IMAGE_GEN_MODEL,
+        contents=[
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part.from_bytes(data=product_norm, mime_type=prod_mime),
+                    types.Part.from_bytes(data=scene_norm, mime_type=scene_mime),
+                    types.Part.from_text(text=prompt),
+                ],
+            )
+        ],
+        config=types.GenerateContentConfig(
+            response_modalities=["IMAGE", "TEXT"],
         ),
     )
 
-    generated = response.generated_images
-    if not generated:
-        raise ValueError("Imagen 3 returned no generated images.")
-    return generated[0].image.image_bytes
+    for part in response.candidates[0].content.parts:
+        if part.inline_data is not None:
+            return part.inline_data.data
+
+    raise ValueError("No image was returned by the model.")
 
 
 ANALYSIS_PROMPT = """You are an expert image quality analyst specializing in product photography and AI-generated composites.
