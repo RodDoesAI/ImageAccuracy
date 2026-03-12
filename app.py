@@ -61,18 +61,15 @@ def replace_product_in_scene(
         prompt_parts.append(extra_prompt.strip())
     prompt = " ".join(prompt_parts)
 
-    subject_ref = types.SubjectReferenceImage(
+    raw_ref = types.RawReferenceImage(
         reference_id=1,
         reference_image=types.Image(image_bytes=product_norm),
-        config=types.SubjectReferenceConfig(
-            subject_type=types.SubjectType.PRODUCT,
-        ),
     )
 
     response = client.models.edit_image(
         model=IMAGEN_EDIT_MODEL,
         prompt=prompt,
-        reference_images=[subject_ref],
+        reference_images=[raw_ref],
         base_image=types.Image(image_bytes=scene_norm),
         config=types.EditImageConfig(
             number_of_images=1,
