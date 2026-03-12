@@ -23,7 +23,7 @@ client = genai.Client(api_key=GOOGLE_API_KEY)
 app = FastAPI(title="Product Image Replacer")
 templates = Jinja2Templates(directory="templates")
 
-GEMINI_IMAGE_GEN_MODEL = "gemini-2.0-flash-preview-image-generation"
+GEMINI_IMAGE_GEN_MODEL = "gemini-2.0-flash-exp"
 GEMINI_ANALYSIS_MODEL = "gemini-2.0-flash"
 
 
